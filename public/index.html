@@ -1,0 +1,65 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>ProofMesh Agent</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 900px; margin: 24px auto; padding: 0 16px; }
+    input, select, textarea, button { width: 100%; margin: 6px 0 12px; padding: 10px; }
+    .card { border: 1px solid #ddd; border-radius: 10px; padding: 14px; margin-top: 14px; }
+    pre { background: #111; color: #f5f5f5; padding: 10px; overflow: auto; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <h1>ProofMesh Agent — MVP</h1>
+  <p>Submit task, run autonomous decision, and verify cryptographic receipts.</p>
+
+  <div class="card">
+    <label>Title</label>
+    <input id="title" value="Hackathon submission decision" />
+    <label>Description</label>
+    <textarea id="description">Evaluate whether this project should be approved for final submission.</textarea>
+    <label>Budget</label>
+    <input id="budget" type="number" value="5000" />
+    <label>Urgency</label>
+    <select id="urgency"><option>low</option><option selected>medium</option><option>high</option></select>
+    <label>Impact</label>
+    <select id="impact"><option>low</option><option selected>high</option><option>medium</option></select>
+    <button id="runBtn">Run Agent</button>
+  </div>
+
+  <div class="card">
+    <h3>Output</h3>
+    <pre id="out">Belum ada eksekusi.</pre>
+  </div>
+
+  <script>
+    const out = document.getElementById('out');
+    document.getElementById('runBtn').onclick = async () => {
+      const payload = {
+        title: document.getElementById('title').value,
+        description: document.getElementById('description').value,
+        budget: Number(document.getElementById('budget').value),
+        urgency: document.getElementById('urgency').value,
+        impact: document.getElementById('impact').value
+      };
+
+      out.textContent = 'Running...';
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+
+      if (!data.ok) {
+        out.textContent = JSON.stringify(data, null, 2);
+        return;
+      }
+
+      const verify = await fetch(`/api/tasks/${data.task.id}/verify`).then(r => r.json());
+      out.textContent = JSON.stringify({ taskId: data.task.id, result: data.task.result, verification: verify.verification, receipts: data.task.receipts }, null, 2);
+    }
+  </script>
+</body>
+</html>
