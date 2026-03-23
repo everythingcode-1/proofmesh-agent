@@ -2,7 +2,8 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const keyDir = path.resolve(process.cwd(), 'data', 'keys');
+const dataDir = path.resolve(process.env.PROOFMESH_DATA_DIR || path.join(process.cwd(), 'data'));
+const keyDir = path.join(dataDir, 'keys');
 const privateKeyPath = path.join(keyDir, 'ed25519-private.pem');
 const publicKeyPath = path.join(keyDir, 'ed25519-public.pem');
 
@@ -45,7 +46,7 @@ function isNonEmptyString(v) {
   return typeof v === 'string' && v.trim().length > 0;
 }
 
-export function buildReceipts({ taskId, payload, result }) {
+export function buildReceipts({ taskId, payload, result, timestamps }) {
   const { privateKey, publicKey } = ensureKeys();
 
   const steps = [
@@ -59,6 +60,7 @@ export function buildReceipts({ taskId, payload, result }) {
 
   return steps.map((s, idx) => {
     const inputHash = sha256(canonical(s.data));
+    const ts = Array.isArray(timestamps) && timestamps[idx] ? timestamps[idx] : new Date().toISOString();
     const core = {
       taskId,
       stepIndex: idx + 1,
@@ -66,7 +68,7 @@ export function buildReceipts({ taskId, payload, result }) {
       reason: s.reason,
       inputHash,
       prevHash,
-      ts: new Date().toISOString()
+      ts
     };
 
     const receiptHash = sha256(canonical(core));

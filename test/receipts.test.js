@@ -1,6 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildReceipts, verifyReceipts } from '../src/receipts.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+let tmpDataDir;
+let buildReceipts;
+let verifyReceipts;
+
+test.before(async () => {
+  tmpDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'proofmesh-receipts-'));
+  process.env.PROOFMESH_DATA_DIR = tmpDataDir;
+  ({ buildReceipts, verifyReceipts } = await import('../src/receipts.js'));
+});
+
+test.after(() => {
+  fs.rmSync(tmpDataDir, { recursive: true, force: true });
+  delete process.env.PROOFMESH_DATA_DIR;
+});
 
 test('receipt chain verifies for valid workflow', () => {
   const payload = { title: 'A', budget: 1000, urgency: 'high', impact: 'medium' };

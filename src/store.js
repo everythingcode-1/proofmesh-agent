@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const dataDir = path.resolve(process.cwd(), 'data');
+const dataDir = path.resolve(process.env.PROOFMESH_DATA_DIR || path.join(process.cwd(), 'data'));
 const dbPath = path.join(dataDir, 'tasks.json');
 const MAX_TASKS = 500;
 

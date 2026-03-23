@@ -97,6 +97,25 @@ function tamperReceipt(receipts = []) {
   return cloned;
 }
 
+function hashReceiptList(receipts = []) {
+  return crypto.createHash('sha256').update(JSON.stringify(receipts)).digest('hex');
+}
+
+function buildReplayAudit(task) {
+  const timestamps = Array.isArray(task.receipts) ? task.receipts.map((r) => r.ts) : [];
+  const regenerated = buildReceipts({ taskId: task.id, payload: task.payload, result: task.result, timestamps });
+  const storedHash = hashReceiptList(task.receipts);
+  const regeneratedHash = hashReceiptList(regenerated);
+
+  return {
+    ok: storedHash === regeneratedHash,
+    storedVerification: verifyReceipts(task.receipts),
+    regeneratedVerification: verifyReceipts(regenerated),
+    storedHash,
+    regeneratedHash
+  };
+}
+
 function validateTaskPayload(payload) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     return 'Payload must be a JSON object';
@@ -236,6 +255,14 @@ export function createAppServer() {
         const task = getTask(verifyMatch[1]);
         if (!task) return json(res, 404, { ok: false, error: 'Task not found' });
         return json(res, 200, { ok: true, verification: verifyReceipts(task.receipts) });
+      }
+
+      const replayMatch = reqUrl.pathname.match(/^\/api\/tasks\/([a-f0-9-]+)\/replay-audit$/i);
+      if (req.method === 'GET' && replayMatch) {
+        if (!UUID_RE.test(replayMatch[1])) return json(res, 400, { ok: false, error: 'Invalid task id format' });
+        const task = getTask(replayMatch[1]);
+        if (!task) return json(res, 404, { ok: false, error: 'Task not found' });
+        return json(res, 200, { ok: true, audit: buildReplayAudit(task) });
       }
 
       const tamperMatch = reqUrl.pathname.match(/^\/api\/tasks\/([a-f0-9-]+)\/tamper-check$/i);

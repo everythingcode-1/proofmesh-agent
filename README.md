@@ -28,6 +28,10 @@ Open: http://localhost:8787
 npm run dev
 ```
 
+## Config
+- `PROOFMESH_DATA_DIR` (optional): override storage/key directory for tasks.json + Ed25519 keys.
+  - Useful for isolated CI tests or multi-instance deployments.
+
 ## Test
 ```bash
 npm test
@@ -40,6 +44,7 @@ npm test
 - `POST /api/tasks` create + execute task
 - `GET /api/tasks/:id` task detail
 - `GET /api/tasks/:id/verify` verify receipt chain
+- `GET /api/tasks/:id/replay-audit` regenerate receipts from persisted payload/result and compare hash parity (determinism audit)
 - `GET /api/tasks/:id/tamper-check` compare original vs tampered verification
 - `GET /api/tasks/:id/judge-bundle` export submission-ready JSON bundle
 - `POST /api/verify` verify any receipt array (custom payload)

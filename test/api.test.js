@@ -1,11 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { startServer } from '../src/server.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 let server;
 let base;
+let tmpDataDir;
 
 test.before(async () => {
+  tmpDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'proofmesh-test-'));
+  process.env.PROOFMESH_DATA_DIR = tmpDataDir;
+
+  const { startServer } = await import('../src/server.js');
   const port = 8989;
   server = startServer({ port });
   base = `http://localhost:${port}`;
@@ -14,6 +21,8 @@ test.before(async () => {
 
 test.after(() => {
   server?.close();
+  fs.rmSync(tmpDataDir, { recursive: true, force: true });
+  delete process.env.PROOFMESH_DATA_DIR;
 });
 
 test('health endpoint works', async () => {
@@ -64,6 +73,24 @@ test('returns stats and supports list limit parameter', async () => {
   assert.equal(stats.ok, true);
   assert.ok(stats.stats.total >= 2);
   assert.ok(Number.isFinite(stats.stats.avgConfidence));
+});
+
+test('replay-audit proves deterministic receipts for persisted task', async () => {
+  const created = await fetch(`${base}/api/tasks`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: 'Replay Audit', budget: 1234, urgency: 'high', impact: 'medium' })
+  }).then((r) => r.json());
+
+  const res = await fetch(`${base}/api/tasks/${created.task.id}/replay-audit`);
+  assert.equal(res.status, 200);
+
+  const body = await res.json();
+  assert.equal(body.ok, true);
+  assert.equal(body.audit.ok, true);
+  assert.equal(body.audit.storedVerification.ok, true);
+  assert.equal(body.audit.regeneratedVerification.ok, true);
+  assert.equal(body.audit.storedHash, body.audit.regeneratedHash);
 });
 
 test('rejects malformed JSON body', async () => {
