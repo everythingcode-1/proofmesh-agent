@@ -4,37 +4,139 @@
   <meta charset="utf-8" />
   <title>ProofMesh Agent</title>
   <style>
-    body { font-family: Arial, sans-serif; max-width: 900px; margin: 24px auto; padding: 0 16px; }
-    input, select, textarea, button { width: 100%; margin: 6px 0 12px; padding: 10px; }
+    :root { --ok:#0b8f3a; --bad:#c62828; --muted:#666; }
+    body { font-family: Inter, Arial, sans-serif; max-width: 1040px; margin: 24px auto; padding: 0 16px; color:#111; }
+    input, select, textarea, button { width: 100%; margin: 6px 0 12px; padding: 10px; border:1px solid #d8d8d8; border-radius:8px; }
+    button { cursor:pointer; }
+    .row { display:grid; grid-template-columns: 1fr 1fr; gap:14px; }
     .card { border: 1px solid #ddd; border-radius: 10px; padding: 14px; margin-top: 14px; }
-    pre { background: #111; color: #f5f5f5; padding: 10px; overflow: auto; border-radius: 8px; }
+    .pill { display:inline-block; padding:4px 8px; border-radius:999px; font-size:12px; font-weight:600; }
+    .ok { background:#e8f7ef; color:var(--ok); }
+    .bad { background:#fdecec; color:var(--bad); }
+    .muted { color:var(--muted); }
+    .timeline { border-left: 2px solid #ddd; margin-left:6px; padding-left:14px; }
+    .timeline-item { margin: 10px 0; }
+    .toolbar { display:flex; gap:8px; flex-wrap:wrap; }
+    .toolbar button { width:auto; }
+    pre { background: #111; color: #f5f5f5; padding: 10px; overflow: auto; border-radius: 8px; max-height:260px; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { border-bottom:1px solid #eee; padding:8px; font-size:13px; text-align:left; }
   </style>
 </head>
 <body>
-  <h1>ProofMesh Agent — MVP</h1>
-  <p>Submit task, run autonomous decision, and verify cryptographic receipts.</p>
+  <h1>ProofMesh Agent — Day 2</h1>
+  <p class="muted">Autonomous decision + signed receipt chain + tamper simulation + judge bundle export.</p>
 
   <div class="card">
-    <label>Title</label>
-    <input id="title" value="Hackathon submission decision" />
+    <div class="row">
+      <div>
+        <label>Title</label>
+        <input id="title" value="Hackathon submission decision" />
+      </div>
+      <div>
+        <label>Budget</label>
+        <input id="budget" type="number" value="5000" />
+      </div>
+    </div>
     <label>Description</label>
     <textarea id="description">Evaluate whether this project should be approved for final submission.</textarea>
-    <label>Budget</label>
-    <input id="budget" type="number" value="5000" />
-    <label>Urgency</label>
-    <select id="urgency"><option>low</option><option selected>medium</option><option>high</option></select>
-    <label>Impact</label>
-    <select id="impact"><option>low</option><option selected>high</option><option>medium</option></select>
+    <div class="row">
+      <div>
+        <label>Urgency</label>
+        <select id="urgency"><option>low</option><option selected>medium</option><option>high</option></select>
+      </div>
+      <div>
+        <label>Impact</label>
+        <select id="impact"><option>low</option><option>medium</option><option selected>high</option></select>
+      </div>
+    </div>
     <button id="runBtn">Run Agent</button>
   </div>
 
   <div class="card">
-    <h3>Output</h3>
-    <pre id="out">Belum ada eksekusi.</pre>
+    <h3>Recent Tasks</h3>
+    <table>
+      <thead><tr><th>ID</th><th>Title</th><th>Decision</th><th>Confidence</th><th>Action</th></tr></thead>
+      <tbody id="taskTable"></tbody>
+    </table>
+  </div>
+
+  <div class="card" id="details" style="display:none;">
+    <h3>Task Detail</h3>
+    <div id="status"></div>
+    <div class="toolbar">
+      <button id="btnVerify">Re-Verify</button>
+      <button id="btnTamper">Run Tamper Simulation</button>
+      <button id="btnBundle">Export Judge Bundle (JSON)</button>
+    </div>
+    <h4>Decision</h4>
+    <pre id="decision"></pre>
+    <h4>Receipt Timeline</h4>
+    <div class="timeline" id="timeline"></div>
+    <h4>Raw Output</h4>
+    <pre id="raw"></pre>
   </div>
 
   <script>
-    const out = document.getElementById('out');
+    let currentTask = null;
+
+    const taskTable = document.getElementById('taskTable');
+    const details = document.getElementById('details');
+    const statusEl = document.getElementById('status');
+    const decisionEl = document.getElementById('decision');
+    const rawEl = document.getElementById('raw');
+    const timelineEl = document.getElementById('timeline');
+
+    function short(id){ return id.slice(0,8); }
+
+    async function refreshTasks() {
+      const res = await fetch('/api/tasks');
+      const data = await res.json();
+      taskTable.innerHTML = '';
+      (data.tasks || []).forEach(t => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><code>${short(t.id)}</code></td>
+          <td>${t.title}</td>
+          <td>${t.decision || '-'}</td>
+          <td>${t.confidence ?? '-'}</td>
+          <td><button data-id="${t.id}">Open</button></td>`;
+        tr.querySelector('button').onclick = () => openTask(t.id);
+        taskTable.appendChild(tr);
+      });
+    }
+
+    async function openTask(id) {
+      const res = await fetch(`/api/tasks/${id}`);
+      const data = await res.json();
+      if (!data.ok) return;
+      currentTask = data.task;
+      details.style.display = 'block';
+      renderTask(data.task);
+      await reverify();
+    }
+
+    function renderTask(task) {
+      decisionEl.textContent = JSON.stringify(task.result, null, 2);
+      rawEl.textContent = JSON.stringify(task, null, 2);
+      timelineEl.innerHTML = '';
+      task.receipts.forEach(r => {
+        const div = document.createElement('div');
+        div.className = 'timeline-item';
+        div.innerHTML = `<strong>#${r.stepIndex} ${r.stepType}</strong><br><span class="muted">${r.reason}</span><br><code>${r.receiptHash.slice(0,20)}...</code>`;
+        timelineEl.appendChild(div);
+      });
+    }
+
+    async function reverify() {
+      if (!currentTask) return;
+      const v = await fetch(`/api/tasks/${currentTask.id}/verify`).then(r=>r.json());
+      const ok = v.verification?.ok;
+      statusEl.innerHTML = ok
+        ? `<span class="pill ok">Verification PASS</span>`
+        : `<span class="pill bad">Verification FAIL: ${v.verification?.reason || ''}</span>`;
+    }
+
     document.getElementById('runBtn').onclick = async () => {
       const payload = {
         title: document.getElementById('title').value,
@@ -44,22 +146,37 @@
         impact: document.getElementById('impact').value
       };
 
-      out.textContent = 'Running...';
       const res = await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload)
       });
       const data = await res.json();
+      if (!data.ok) return alert(data.error || 'Failed');
+      await refreshTasks();
+      await openTask(data.task.id);
+    };
 
-      if (!data.ok) {
-        out.textContent = JSON.stringify(data, null, 2);
-        return;
-      }
+    document.getElementById('btnVerify').onclick = reverify;
 
-      const verify = await fetch(`/api/tasks/${data.task.id}/verify`).then(r => r.json());
-      out.textContent = JSON.stringify({ taskId: data.task.id, result: data.task.result, verification: verify.verification, receipts: data.task.receipts }, null, 2);
-    }
+    document.getElementById('btnTamper').onclick = async () => {
+      if (!currentTask) return;
+      const v = await fetch(`/api/tasks/${currentTask.id}/tamper-check`).then(r=>r.json());
+      alert(`Original: ${v.original.ok ? 'PASS':'FAIL'}\nTampered: ${v.tampered.ok ? 'PASS':'FAIL'}\nReason: ${v.tampered.reason}`);
+    };
+
+    document.getElementById('btnBundle').onclick = async () => {
+      if (!currentTask) return;
+      const data = await fetch(`/api/tasks/${currentTask.id}/judge-bundle`).then(r=>r.json());
+      const blob = new Blob([JSON.stringify(data.bundle, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `judge-bundle-${currentTask.id}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    };
+
+    refreshTasks();
   </script>
 </body>
 </html>
