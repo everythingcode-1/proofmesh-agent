@@ -36,3 +36,29 @@ test('create task and verify', async () => {
   assert.equal(ver.ok, true);
   assert.equal(ver.verification.ok, true);
 });
+
+test('rejects invalid task payload with clear 400 error', async () => {
+  const res = await fetch(`${base}/api/tasks`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: 'Bad payload', budget: -100, urgency: 'critical' })
+  });
+
+  assert.equal(res.status, 400);
+  const data = await res.json();
+  assert.equal(data.ok, false);
+  assert.match(data.error, /(budget|urgency)/i);
+});
+
+test('rejects verify payload when receipts is not array', async () => {
+  const res = await fetch(`${base}/api/verify`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ receipts: 'not-array' })
+  });
+
+  assert.equal(res.status, 400);
+  const data = await res.json();
+  assert.equal(data.ok, false);
+  assert.match(data.error, /array/i);
+});

@@ -29,3 +29,26 @@ test('tampered receipt fails verification', () => {
   const verified = verifyReceipts(receipts);
   assert.equal(verified.ok, false);
 });
+
+test('rejects non-array receipts payload', () => {
+  const verified = verifyReceipts({ not: 'array' });
+  assert.equal(verified.ok, false);
+  assert.match(verified.reason, /array/i);
+});
+
+test('detects invalid step ordering', () => {
+  const payload = { title: 'B', budget: 2500, urgency: 'medium', impact: 'high' };
+  const result = {
+    scoring: { urgencyScore: 2, impactScore: 3, budgetScore: 2, total: 7 },
+    decision: 'APPROVE',
+    confidence: 0.87,
+    plan: ['y']
+  };
+
+  const receipts = buildReceipts({ taskId: 't3', payload, result });
+  receipts[1].stepIndex = 3;
+
+  const verified = verifyReceipts(receipts);
+  assert.equal(verified.ok, false);
+  assert.match(verified.reason, /step index/i);
+});

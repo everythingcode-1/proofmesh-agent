@@ -7,9 +7,10 @@ Day-2 MVP in progress (3-day delivery plan).
 
 ## Features
 - Submit task and run autonomous decision workflow
+- Input validation with explicit `400` errors for invalid payloads
 - Append-only receipt chain (`prevHash`, `receiptHash`)
 - Receipt signing (Ed25519)
-- Verification endpoint (integrity + signature)
+- Strict verification endpoint (integrity + signature + receipt structure checks)
 - Tamper simulation endpoint for demo
 - Judge bundle export endpoint
 - Minimal web UI with receipt timeline + verification badge

@@ -21,7 +21,7 @@ function readBody(req) {
       try {
         resolve(data ? JSON.parse(data) : {});
       } catch (e) {
-        reject(e);
+        reject(new Error('Invalid JSON body'));
       }
     });
     req.on('error', reject);
@@ -75,6 +75,36 @@ function tamperReceipt(receipts = []) {
   return cloned;
 }
 
+function validateTaskPayload(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return 'Payload must be a JSON object';
+  }
+
+  if (payload.title !== undefined && typeof payload.title !== 'string') {
+    return 'title must be a string';
+  }
+
+  if (payload.description !== undefined && typeof payload.description !== 'string') {
+    return 'description must be a string';
+  }
+
+  if (payload.budget !== undefined) {
+    const budget = Number(payload.budget);
+    if (!Number.isFinite(budget) || budget < 0) return 'budget must be a non-negative number';
+  }
+
+  const allowedLevels = new Set(['low', 'medium', 'high']);
+  if (payload.urgency !== undefined && !allowedLevels.has(String(payload.urgency).toLowerCase())) {
+    return 'urgency must be one of: low, medium, high';
+  }
+
+  if (payload.impact !== undefined && !allowedLevels.has(String(payload.impact).toLowerCase())) {
+    return 'impact must be one of: low, medium, high';
+  }
+
+  return null;
+}
+
 export function createAppServer() {
   return http.createServer(async (req, res) => {
     try {
@@ -96,11 +126,17 @@ export function createAppServer() {
 
       if (req.method === 'POST' && req.url === '/api/verify') {
         const body = await readBody(req);
-        return json(res, 200, { ok: true, verification: verifyReceipts(body.receipts || []) });
+        if (!Array.isArray(body.receipts)) {
+          return json(res, 400, { ok: false, error: 'receipts must be an array' });
+        }
+        return json(res, 200, { ok: true, verification: verifyReceipts(body.receipts) });
       }
 
       if (req.method === 'POST' && req.url === '/api/tasks') {
         const payload = await readBody(req);
+        const validationError = validateTaskPayload(payload);
+        if (validationError) return json(res, 400, { ok: false, error: validationError });
+
         const result = runAgentWorkflow(payload);
         const id = crypto.randomUUID();
         const receipts = buildReceipts({ taskId: id, payload, result });
@@ -154,7 +190,8 @@ export function createAppServer() {
 
       return json(res, 404, { ok: false, error: 'Not found' });
     } catch (err) {
-      return json(res, 500, { ok: false, error: err.message });
+      const isInputError = err?.message === 'Invalid JSON body';
+      return json(res, isInputError ? 400 : 500, { ok: false, error: err.message });
     }
   });
 }
