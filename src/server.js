@@ -14,19 +14,40 @@ function json(res, status, data) {
   res.end(JSON.stringify(data, null, 2));
 }
 
+const MAX_BODY_BYTES = 64 * 1024;
+
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let data = '';
-    req.on('data', (chunk) => (data += chunk));
+    let receivedBytes = 0;
+    let tooLarge = false;
+
+    req.on('data', (chunk) => {
+      receivedBytes += chunk.length;
+      if (receivedBytes > MAX_BODY_BYTES) {
+        tooLarge = true;
+        return;
+      }
+      data += chunk;
+    });
+
     req.on('end', () => {
+      if (tooLarge) return reject(new Error('Payload too large'));
+
       try {
         resolve(data ? JSON.parse(data) : {});
       } catch (e) {
         reject(new Error('Invalid JSON body'));
       }
     });
+
     req.on('error', reject);
   });
+}
+
+function requiresJson(req) {
+  const contentType = String(req.headers['content-type'] || '').toLowerCase();
+  return contentType.includes('application/json');
 }
 
 function serveStatic(req, res) {
@@ -165,6 +186,10 @@ export function createAppServer() {
       }
 
       if (req.method === 'POST' && reqUrl.pathname === '/api/verify') {
+        if (!requiresJson(req)) {
+          return json(res, 415, { ok: false, error: 'Content-Type must be application/json' });
+        }
+
         const body = await readBody(req);
         if (!Array.isArray(body.receipts)) {
           return json(res, 400, { ok: false, error: 'receipts must be an array' });
@@ -173,6 +198,10 @@ export function createAppServer() {
       }
 
       if (req.method === 'POST' && reqUrl.pathname === '/api/tasks') {
+        if (!requiresJson(req)) {
+          return json(res, 415, { ok: false, error: 'Content-Type must be application/json' });
+        }
+
         const payload = await readBody(req);
         const validationError = validateTaskPayload(payload);
         if (validationError) return json(res, 400, { ok: false, error: validationError });
@@ -234,8 +263,14 @@ export function createAppServer() {
 
       return json(res, 404, { ok: false, error: 'Not found' });
     } catch (err) {
-      const isInputError = err?.message === 'Invalid JSON body';
-      return json(res, isInputError ? 400 : 500, { ok: false, error: err.message });
+      const message = err?.message || 'Internal server error';
+      if (message === 'Invalid JSON body') {
+        return json(res, 400, { ok: false, error: message });
+      }
+      if (message === 'Payload too large') {
+        return json(res, 413, { ok: false, error: message });
+      }
+      return json(res, 500, { ok: false, error: message });
     }
   });
 }

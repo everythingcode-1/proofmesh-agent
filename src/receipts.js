@@ -89,9 +89,18 @@ export function verifyReceipts(receipts = []) {
     return { ok: false, reason: 'Receipts must be an array' };
   }
 
+  const expectedStepTypes = ['ingest', 'score', 'decision', 'plan'];
+  if (receipts.length !== expectedStepTypes.length) {
+    return {
+      ok: false,
+      reason: `Invalid receipt length: expected ${expectedStepTypes.length}, got ${receipts.length}`
+    };
+  }
+
   let prevHash = 'GENESIS';
   let expectedStepIndex = 1;
   let expectedTaskId = null;
+  let expectedPublicKey = null;
 
   for (const r of receipts) {
     if (!r || typeof r !== 'object') {
@@ -115,6 +124,14 @@ export function verifyReceipts(receipts = []) {
       return { ok: false, reason: `Missing step metadata at step ${r.stepIndex}` };
     }
 
+    const expectedType = expectedStepTypes[r.stepIndex - 1];
+    if (r.stepType !== expectedType) {
+      return {
+        ok: false,
+        reason: `Unexpected step type at step ${r.stepIndex}: expected ${expectedType}, got ${r.stepType}`
+      };
+    }
+
     if (!isNonEmptyString(r.inputHash) || !isNonEmptyString(r.prevHash)) {
       return { ok: false, reason: `Missing hash linkage at step ${r.stepIndex}` };
     }
@@ -125,6 +142,11 @@ export function verifyReceipts(receipts = []) {
 
     if (!isNonEmptyString(r.receiptHash) || !isNonEmptyString(r.signature) || !isNonEmptyString(r.publicKey)) {
       return { ok: false, reason: `Missing cryptographic fields at step ${r.stepIndex}` };
+    }
+
+    if (expectedPublicKey === null) expectedPublicKey = r.publicKey;
+    if (r.publicKey !== expectedPublicKey) {
+      return { ok: false, reason: `Mixed publicKey detected at step ${r.stepIndex}` };
     }
 
     const core = {

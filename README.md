@@ -8,9 +8,10 @@ Day-2 MVP in progress (3-day delivery plan).
 ## Features
 - Submit task and run autonomous decision workflow
 - Input validation with explicit `400` errors for invalid payloads
+- Request hardening: JSON content-type enforcement (`415`) and payload-size guard (`413`, max 64KB)
 - Append-only receipt chain (`prevHash`, `receiptHash`)
 - Receipt signing (Ed25519)
-- Strict verification endpoint (integrity + signature + receipt structure checks)
+- Strict verification endpoint (integrity + signature + exact step contract + single-key consistency checks)
 - Tamper simulation endpoint for demo
 - Judge bundle export endpoint
 - Minimal web UI with receipt timeline + verification badge

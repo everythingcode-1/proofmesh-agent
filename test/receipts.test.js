@@ -52,3 +52,31 @@ test('detects invalid step ordering', () => {
   assert.equal(verified.ok, false);
   assert.match(verified.reason, /step index/i);
 });
+
+test('rejects unexpected receipt length', () => {
+  const verified = verifyReceipts([]);
+  assert.equal(verified.ok, false);
+  assert.match(verified.reason, /length/i);
+});
+
+test('rejects modified step type and mixed public key', () => {
+  const payload = { title: 'C', budget: 100, urgency: 'low', impact: 'medium' };
+  const result = {
+    scoring: { urgencyScore: 1, impactScore: 2, budgetScore: 1, total: 4 },
+    decision: 'REJECT',
+    confidence: 0.7,
+    plan: ['z']
+  };
+
+  const receipts = buildReceipts({ taskId: 't4', payload, result });
+  receipts[0].stepType = 'invalid-step';
+  let verified = verifyReceipts(receipts);
+  assert.equal(verified.ok, false);
+  assert.match(verified.reason, /step type/i);
+
+  const receipts2 = buildReceipts({ taskId: 't5', payload, result });
+  receipts2[2].publicKey = '-----BEGIN PUBLIC KEY-----\nFAKE\n-----END PUBLIC KEY-----';
+  verified = verifyReceipts(receipts2);
+  assert.equal(verified.ok, false);
+  assert.match(verified.reason, /publickey/i);
+});

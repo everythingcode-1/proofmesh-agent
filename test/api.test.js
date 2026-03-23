@@ -79,6 +79,33 @@ test('rejects malformed JSON body', async () => {
   assert.match(data.error, /invalid json/i);
 });
 
+test('rejects requests without JSON content-type', async () => {
+  const res = await fetch(`${base}/api/tasks`, {
+    method: 'POST',
+    headers: { 'content-type': 'text/plain' },
+    body: JSON.stringify({ title: 'No json content type' })
+  });
+
+  assert.equal(res.status, 415);
+  const data = await res.json();
+  assert.equal(data.ok, false);
+  assert.match(data.error, /content-type/i);
+});
+
+test('rejects oversized payloads', async () => {
+  const hugeDescription = 'x'.repeat(70 * 1024);
+  const res = await fetch(`${base}/api/tasks`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: 'Huge payload', description: hugeDescription })
+  });
+
+  assert.equal(res.status, 413);
+  const data = await res.json();
+  assert.equal(data.ok, false);
+  assert.match(data.error, /payload too large/i);
+});
+
 test('rejects invalid task payload with clear 400 error', async () => {
   const res = await fetch(`${base}/api/tasks`, {
     method: 'POST',
