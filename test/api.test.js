@@ -37,6 +37,48 @@ test('create task and verify', async () => {
   assert.equal(ver.verification.ok, true);
 });
 
+test('returns stats and supports list limit parameter', async () => {
+  await fetch(`${base}/api/tasks`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: 'Stats 1', budget: 10, urgency: 'low', impact: 'low' })
+  });
+
+  await fetch(`${base}/api/tasks`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: 'Stats 2', budget: 20000, urgency: 'high', impact: 'high' })
+  });
+
+  const listRes = await fetch(`${base}/api/tasks?limit=1`);
+  const list = await listRes.json();
+
+  assert.equal(list.ok, true);
+  assert.equal(list.limit, 1);
+  assert.equal(list.tasks.length, 1);
+  assert.ok(list.total >= 2);
+
+  const statsRes = await fetch(`${base}/api/stats`);
+  const stats = await statsRes.json();
+
+  assert.equal(stats.ok, true);
+  assert.ok(stats.stats.total >= 2);
+  assert.ok(Number.isFinite(stats.stats.avgConfidence));
+});
+
+test('rejects malformed JSON body', async () => {
+  const res = await fetch(`${base}/api/tasks`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: '{"title": "oops"'
+  });
+
+  assert.equal(res.status, 400);
+  const data = await res.json();
+  assert.equal(data.ok, false);
+  assert.match(data.error, /invalid json/i);
+});
+
 test('rejects invalid task payload with clear 400 error', async () => {
   const res = await fetch(`${base}/api/tasks`, {
     method: 'POST',
@@ -61,4 +103,13 @@ test('rejects verify payload when receipts is not array', async () => {
   const data = await res.json();
   assert.equal(data.ok, false);
   assert.match(data.error, /array/i);
+});
+
+test('rejects non-uuid task id path', async () => {
+  const res = await fetch(`${base}/api/tasks/abc123/verify`);
+  assert.equal(res.status, 400);
+
+  const data = await res.json();
+  assert.equal(data.ok, false);
+  assert.match(data.error, /invalid task id format/i);
 });

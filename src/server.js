@@ -7,6 +7,7 @@ import { buildReceipts, verifyReceipts } from './receipts.js';
 import { getTask, readDb, saveTask } from './store.js';
 
 const publicDir = path.resolve(process.cwd(), 'public');
+const UUID_RE = /^[a-f0-9-]{36}$/i;
 
 function json(res, status, data) {
   res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -105,26 +106,65 @@ function validateTaskPayload(payload) {
   return null;
 }
 
+function toTaskSummary(task) {
+  return {
+    id: task.id,
+    createdAt: task.createdAt,
+    title: task.payload?.title || 'Untitled',
+    decision: task.result?.decision,
+    confidence: task.result?.confidence
+  };
+}
+
+function clampLimit(value, fallback = 20) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(Math.floor(parsed), 100);
+}
+
+function buildStats(tasks) {
+  const stats = {
+    total: tasks.length,
+    decisions: { APPROVE: 0, REVIEW: 0, REJECT: 0 },
+    avgConfidence: 0
+  };
+
+  if (tasks.length === 0) return stats;
+
+  let confidenceTotal = 0;
+
+  for (const task of tasks) {
+    const decision = task?.result?.decision;
+    if (decision && stats.decisions[decision] !== undefined) stats.decisions[decision] += 1;
+    confidenceTotal += Number(task?.result?.confidence || 0);
+  }
+
+  stats.avgConfidence = Number((confidenceTotal / tasks.length).toFixed(3));
+  return stats;
+}
+
 export function createAppServer() {
   return http.createServer(async (req, res) => {
     try {
-      if (req.method === 'GET' && req.url === '/api/health') {
+      const reqUrl = new URL(req.url, 'http://localhost');
+
+      if (req.method === 'GET' && reqUrl.pathname === '/api/health') {
         return json(res, 200, { ok: true, service: 'proofmesh-agent', ts: new Date().toISOString() });
       }
 
-      if (req.method === 'GET' && req.url === '/api/tasks') {
+      if (req.method === 'GET' && reqUrl.pathname === '/api/tasks') {
         const db = readDb();
-        const tasks = db.tasks.map((t) => ({
-          id: t.id,
-          createdAt: t.createdAt,
-          title: t.payload?.title || 'Untitled',
-          decision: t.result?.decision,
-          confidence: t.result?.confidence
-        }));
-        return json(res, 200, { ok: true, tasks });
+        const limit = clampLimit(reqUrl.searchParams.get('limit'));
+        const tasks = db.tasks.slice(0, limit).map(toTaskSummary);
+        return json(res, 200, { ok: true, total: db.tasks.length, limit, tasks });
       }
 
-      if (req.method === 'POST' && req.url === '/api/verify') {
+      if (req.method === 'GET' && reqUrl.pathname === '/api/stats') {
+        const db = readDb();
+        return json(res, 200, { ok: true, stats: buildStats(db.tasks) });
+      }
+
+      if (req.method === 'POST' && reqUrl.pathname === '/api/verify') {
         const body = await readBody(req);
         if (!Array.isArray(body.receipts)) {
           return json(res, 400, { ok: false, error: 'receipts must be an array' });
@@ -132,7 +172,7 @@ export function createAppServer() {
         return json(res, 200, { ok: true, verification: verifyReceipts(body.receipts) });
       }
 
-      if (req.method === 'POST' && req.url === '/api/tasks') {
+      if (req.method === 'POST' && reqUrl.pathname === '/api/tasks') {
         const payload = await readBody(req);
         const validationError = validateTaskPayload(payload);
         if (validationError) return json(res, 400, { ok: false, error: validationError });
@@ -153,22 +193,25 @@ export function createAppServer() {
         return json(res, 201, { ok: true, task });
       }
 
-      const taskMatch = req.url.match(/^\/api\/tasks\/([a-f0-9-]+)$/i);
+      const taskMatch = reqUrl.pathname.match(/^\/api\/tasks\/([a-f0-9-]+)$/i);
       if (req.method === 'GET' && taskMatch) {
+        if (!UUID_RE.test(taskMatch[1])) return json(res, 400, { ok: false, error: 'Invalid task id format' });
         const task = getTask(taskMatch[1]);
         if (!task) return json(res, 404, { ok: false, error: 'Task not found' });
         return json(res, 200, { ok: true, task });
       }
 
-      const verifyMatch = req.url.match(/^\/api\/tasks\/([a-f0-9-]+)\/verify$/i);
+      const verifyMatch = reqUrl.pathname.match(/^\/api\/tasks\/([a-f0-9-]+)\/verify$/i);
       if (req.method === 'GET' && verifyMatch) {
+        if (!UUID_RE.test(verifyMatch[1])) return json(res, 400, { ok: false, error: 'Invalid task id format' });
         const task = getTask(verifyMatch[1]);
         if (!task) return json(res, 404, { ok: false, error: 'Task not found' });
         return json(res, 200, { ok: true, verification: verifyReceipts(task.receipts) });
       }
 
-      const tamperMatch = req.url.match(/^\/api\/tasks\/([a-f0-9-]+)\/tamper-check$/i);
+      const tamperMatch = reqUrl.pathname.match(/^\/api\/tasks\/([a-f0-9-]+)\/tamper-check$/i);
       if (req.method === 'GET' && tamperMatch) {
+        if (!UUID_RE.test(tamperMatch[1])) return json(res, 400, { ok: false, error: 'Invalid task id format' });
         const task = getTask(tamperMatch[1]);
         if (!task) return json(res, 404, { ok: false, error: 'Task not found' });
         const tampered = tamperReceipt(task.receipts);
@@ -179,8 +222,9 @@ export function createAppServer() {
         });
       }
 
-      const bundleMatch = req.url.match(/^\/api\/tasks\/([a-f0-9-]+)\/judge-bundle$/i);
+      const bundleMatch = reqUrl.pathname.match(/^\/api\/tasks\/([a-f0-9-]+)\/judge-bundle$/i);
       if (req.method === 'GET' && bundleMatch) {
+        if (!UUID_RE.test(bundleMatch[1])) return json(res, 400, { ok: false, error: 'Invalid task id format' });
         const task = getTask(bundleMatch[1]);
         if (!task) return json(res, 404, { ok: false, error: 'Task not found' });
         return json(res, 200, { ok: true, bundle: buildJudgeBundle(task) });

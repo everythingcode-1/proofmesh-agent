@@ -34,7 +34,8 @@ npm test
 
 ## API
 - `GET /api/health` health check
-- `GET /api/tasks` list recent tasks
+- `GET /api/tasks?limit=20` list recent tasks (default 20, max 100) + total count
+- `GET /api/stats` ringkasan decision distribution + average confidence
 - `POST /api/tasks` create + execute task
 - `GET /api/tasks/:id` task detail
 - `GET /api/tasks/:id/verify` verify receipt chain
