@@ -14,7 +14,7 @@ Day-2 MVP in progress (3-day delivery plan).
 - Strict verification endpoint (integrity + signature + exact step contract + single-key consistency checks)
 - Tamper simulation endpoint for demo
 - Judge bundle export endpoint
-- Minimal web UI with receipt timeline + verification badge
+- Minimal web UI with receipt timeline, replay-audit action, and fleet stats panel
 
 ## Run
 ```bash
@@ -39,8 +39,8 @@ npm test
 
 ## API
 - `GET /api/health` health check
-- `GET /api/tasks?limit=20` list recent tasks (default 20, max 100) + total count
-- `GET /api/stats` ringkasan decision distribution + average confidence
+- `GET /api/tasks?limit=20&offset=0` list recent tasks (default 20, max 100) with pagination metadata (`total`, `hasMore`)
+- `GET /api/stats` ringkasan decision distribution + average confidence + confidence bands + 24h activity
 - `POST /api/tasks` create + execute task
 - `GET /api/tasks/:id` task detail
 - `GET /api/tasks/:id/verify` verify receipt chain

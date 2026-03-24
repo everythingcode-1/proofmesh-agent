@@ -21,11 +21,15 @@
     pre { background: #111; color: #f5f5f5; padding: 10px; overflow: auto; border-radius: 8px; max-height:260px; }
     table { width:100%; border-collapse: collapse; }
     th, td { border-bottom:1px solid #eee; padding:8px; font-size:13px; text-align:left; }
+    .stats-grid { display:grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap:8px; }
+    .stat-item { background:#fafafa; border:1px solid #eee; border-radius:8px; padding:10px; }
+    .stat-label { display:block; font-size:12px; color:var(--muted); }
+    .stat-value { font-size:22px; font-weight:700; }
   </style>
 </head>
 <body>
-  <h1>ProofMesh Agent — Day 2</h1>
-  <p class="muted">Autonomous decision + signed receipt chain + tamper simulation + judge bundle export.</p>
+  <h1>ProofMesh Agent — Day 2+</h1>
+  <p class="muted">Autonomous decision + signed receipt chain + replay audit + tamper simulation + judge bundle export.</p>
 
   <div class="card">
     <div class="row">
@@ -54,6 +58,11 @@
   </div>
 
   <div class="card">
+    <h3>Fleet Stats</h3>
+    <div class="stats-grid" id="statsGrid"></div>
+  </div>
+
+  <div class="card">
     <h3>Recent Tasks</h3>
     <table>
       <thead><tr><th>ID</th><th>Title</th><th>Decision</th><th>Confidence</th><th>Action</th></tr></thead>
@@ -66,6 +75,7 @@
     <div id="status"></div>
     <div class="toolbar">
       <button id="btnVerify">Re-Verify</button>
+      <button id="btnReplay">Run Replay Audit</button>
       <button id="btnTamper">Run Tamper Simulation</button>
       <button id="btnBundle">Export Judge Bundle (JSON)</button>
     </div>
@@ -86,22 +96,72 @@
     const decisionEl = document.getElementById('decision');
     const rawEl = document.getElementById('raw');
     const timelineEl = document.getElementById('timeline');
+    const statsGrid = document.getElementById('statsGrid');
 
     function short(id){ return id.slice(0,8); }
 
+    function confidenceText(value) {
+      if (typeof value !== 'number') return '-';
+      return value.toFixed(3);
+    }
+
+    function renderStats(stats = {}) {
+      const map = [
+        ['Total Tasks', stats.total ?? 0],
+        ['Avg Confidence', confidenceText(stats.avgConfidence)],
+        ['24h Activity', stats.createdLast24h ?? 0],
+        ['High Confidence', stats.confidenceBands?.high ?? 0],
+      ];
+
+      statsGrid.innerHTML = '';
+      for (const [label, value] of map) {
+        const el = document.createElement('div');
+        el.className = 'stat-item';
+        const labelEl = document.createElement('span');
+        labelEl.className = 'stat-label';
+        labelEl.textContent = label;
+        const valueEl = document.createElement('span');
+        valueEl.className = 'stat-value';
+        valueEl.textContent = String(value);
+        el.appendChild(labelEl);
+        el.appendChild(valueEl);
+        statsGrid.appendChild(el);
+      }
+    }
+
+    async function refreshStats() {
+      const data = await fetch('/api/stats').then(r => r.json());
+      if (data.ok) renderStats(data.stats);
+    }
+
     async function refreshTasks() {
-      const res = await fetch('/api/tasks');
+      const res = await fetch('/api/tasks?limit=30');
       const data = await res.json();
       taskTable.innerHTML = '';
       (data.tasks || []).forEach(t => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td><code>${short(t.id)}</code></td>
-          <td>${t.title}</td>
-          <td>${t.decision || '-'}</td>
-          <td>${t.confidence ?? '-'}</td>
-          <td><button data-id="${t.id}">Open</button></td>`;
-        tr.querySelector('button').onclick = () => openTask(t.id);
+
+        const idTd = document.createElement('td');
+        const code = document.createElement('code');
+        code.textContent = short(t.id);
+        idTd.appendChild(code);
+
+        const titleTd = document.createElement('td');
+        titleTd.textContent = t.title;
+
+        const decisionTd = document.createElement('td');
+        decisionTd.textContent = t.decision || '-';
+
+        const confidenceTd = document.createElement('td');
+        confidenceTd.textContent = t.confidence ?? '-';
+
+        const actionTd = document.createElement('td');
+        const btn = document.createElement('button');
+        btn.textContent = 'Open';
+        btn.onclick = () => openTask(t.id);
+        actionTd.appendChild(btn);
+
+        tr.append(idTd, titleTd, decisionTd, confidenceTd, actionTd);
         taskTable.appendChild(tr);
       });
     }
@@ -123,7 +183,18 @@
       task.receipts.forEach(r => {
         const div = document.createElement('div');
         div.className = 'timeline-item';
-        div.innerHTML = `<strong>#${r.stepIndex} ${r.stepType}</strong><br><span class="muted">${r.reason}</span><br><code>${r.receiptHash.slice(0,20)}...</code>`;
+
+        const title = document.createElement('strong');
+        title.textContent = `#${r.stepIndex} ${r.stepType}`;
+
+        const reason = document.createElement('div');
+        reason.className = 'muted';
+        reason.textContent = r.reason;
+
+        const hash = document.createElement('code');
+        hash.textContent = `${r.receiptHash.slice(0,20)}...`;
+
+        div.append(title, reason, hash);
         timelineEl.appendChild(div);
       });
     }
@@ -154,10 +225,18 @@
       const data = await res.json();
       if (!data.ok) return alert(data.error || 'Failed');
       await refreshTasks();
+      await refreshStats();
       await openTask(data.task.id);
     };
 
     document.getElementById('btnVerify').onclick = reverify;
+
+    document.getElementById('btnReplay').onclick = async () => {
+      if (!currentTask) return;
+      const v = await fetch(`/api/tasks/${currentTask.id}/replay-audit`).then(r=>r.json());
+      const audit = v.audit || {};
+      alert(`Replay audit: ${audit.ok ? 'PASS' : 'FAIL'}\nStored hash: ${audit.storedHash || '-'}\nRegenerated hash: ${audit.regeneratedHash || '-'}`);
+    };
 
     document.getElementById('btnTamper').onclick = async () => {
       if (!currentTask) return;
@@ -177,6 +256,7 @@
     };
 
     refreshTasks();
+    refreshStats();
   </script>
 </body>
 </html>

@@ -46,7 +46,7 @@ test('create task and verify', async () => {
   assert.equal(ver.verification.ok, true);
 });
 
-test('returns stats and supports list limit parameter', async () => {
+test('returns stats and supports list limit/offset pagination', async () => {
   await fetch(`${base}/api/tasks`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -59,12 +59,14 @@ test('returns stats and supports list limit parameter', async () => {
     body: JSON.stringify({ title: 'Stats 2', budget: 20000, urgency: 'high', impact: 'high' })
   });
 
-  const listRes = await fetch(`${base}/api/tasks?limit=1`);
+  const listRes = await fetch(`${base}/api/tasks?limit=1&offset=1`);
   const list = await listRes.json();
 
   assert.equal(list.ok, true);
   assert.equal(list.limit, 1);
+  assert.equal(list.offset, 1);
   assert.equal(list.tasks.length, 1);
+  assert.equal(typeof list.hasMore, 'boolean');
   assert.ok(list.total >= 2);
 
   const statsRes = await fetch(`${base}/api/stats`);
@@ -73,6 +75,9 @@ test('returns stats and supports list limit parameter', async () => {
   assert.equal(stats.ok, true);
   assert.ok(stats.stats.total >= 2);
   assert.ok(Number.isFinite(stats.stats.avgConfidence));
+  assert.equal(typeof stats.stats.createdLast24h, 'number');
+  assert.ok(stats.stats.confidenceBands);
+  assert.equal(typeof stats.stats.confidenceBands.high, 'number');
 });
 
 test('replay-audit proves deterministic receipts for persisted task', async () => {

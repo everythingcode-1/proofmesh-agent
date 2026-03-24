@@ -162,21 +162,41 @@ function clampLimit(value, fallback = 20) {
   return Math.min(Math.floor(parsed), 100);
 }
 
+function clampOffset(value, fallback = 0) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+  return Math.floor(parsed);
+}
+
 function buildStats(tasks) {
   const stats = {
     total: tasks.length,
     decisions: { APPROVE: 0, REVIEW: 0, REJECT: 0 },
-    avgConfidence: 0
+    avgConfidence: 0,
+    confidenceBands: { high: 0, medium: 0, low: 0 },
+    createdLast24h: 0
   };
 
   if (tasks.length === 0) return stats;
 
   let confidenceTotal = 0;
+  const now = Date.now();
 
   for (const task of tasks) {
     const decision = task?.result?.decision;
     if (decision && stats.decisions[decision] !== undefined) stats.decisions[decision] += 1;
-    confidenceTotal += Number(task?.result?.confidence || 0);
+
+    const confidence = Number(task?.result?.confidence || 0);
+    confidenceTotal += confidence;
+
+    if (confidence >= 0.85) stats.confidenceBands.high += 1;
+    else if (confidence >= 0.7) stats.confidenceBands.medium += 1;
+    else stats.confidenceBands.low += 1;
+
+    const createdAtTs = Date.parse(task?.createdAt || '');
+    if (Number.isFinite(createdAtTs) && now - createdAtTs <= 24 * 60 * 60 * 1000) {
+      stats.createdLast24h += 1;
+    }
   }
 
   stats.avgConfidence = Number((confidenceTotal / tasks.length).toFixed(3));
@@ -195,8 +215,16 @@ export function createAppServer() {
       if (req.method === 'GET' && reqUrl.pathname === '/api/tasks') {
         const db = readDb();
         const limit = clampLimit(reqUrl.searchParams.get('limit'));
-        const tasks = db.tasks.slice(0, limit).map(toTaskSummary);
-        return json(res, 200, { ok: true, total: db.tasks.length, limit, tasks });
+        const offset = clampOffset(reqUrl.searchParams.get('offset'));
+        const tasks = db.tasks.slice(offset, offset + limit).map(toTaskSummary);
+        return json(res, 200, {
+          ok: true,
+          total: db.tasks.length,
+          limit,
+          offset,
+          hasMore: offset + tasks.length < db.tasks.length,
+          tasks
+        });
       }
 
       if (req.method === 'GET' && reqUrl.pathname === '/api/stats') {
