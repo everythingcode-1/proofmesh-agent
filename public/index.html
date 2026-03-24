@@ -1,262 +1,110 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ProofMesh Agent</title>
   <style>
-    :root { --ok:#0b8f3a; --bad:#c62828; --muted:#666; }
-    body { font-family: Inter, Arial, sans-serif; max-width: 1040px; margin: 24px auto; padding: 0 16px; color:#111; }
-    input, select, textarea, button { width: 100%; margin: 6px 0 12px; padding: 10px; border:1px solid #d8d8d8; border-radius:8px; }
-    button { cursor:pointer; }
-    .row { display:grid; grid-template-columns: 1fr 1fr; gap:14px; }
-    .card { border: 1px solid #ddd; border-radius: 10px; padding: 14px; margin-top: 14px; }
-    .pill { display:inline-block; padding:4px 8px; border-radius:999px; font-size:12px; font-weight:600; }
-    .ok { background:#e8f7ef; color:var(--ok); }
-    .bad { background:#fdecec; color:var(--bad); }
-    .muted { color:var(--muted); }
-    .timeline { border-left: 2px solid #ddd; margin-left:6px; padding-left:14px; }
-    .timeline-item { margin: 10px 0; }
-    .toolbar { display:flex; gap:8px; flex-wrap:wrap; }
-    .toolbar button { width:auto; }
-    pre { background: #111; color: #f5f5f5; padding: 10px; overflow: auto; border-radius: 8px; max-height:260px; }
-    table { width:100%; border-collapse: collapse; }
-    th, td { border-bottom:1px solid #eee; padding:8px; font-size:13px; text-align:left; }
-    .stats-grid { display:grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap:8px; }
-    .stat-item { background:#fafafa; border:1px solid #eee; border-radius:8px; padding:10px; }
-    .stat-label { display:block; font-size:12px; color:var(--muted); }
-    .stat-value { font-size:22px; font-weight:700; }
+    :root {
+      --bg: #0b1020;
+      --panel: #121a2b;
+      --text: #e8eefc;
+      --muted: #9fb0d1;
+      --primary: #5b8cff;
+      --border: #263553;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: radial-gradient(circle at top right, #182543, var(--bg));
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .container {
+      width: min(980px, 100%);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0));
+      padding: 28px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(91, 140, 255, 0.18);
+      color: #bfd3ff;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+    h1 { margin: 0 0 12px; font-size: clamp(30px, 5vw, 44px); }
+    p { margin: 0; color: var(--muted); line-height: 1.6; }
+    .actions { margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap; }
+    a.btn {
+      text-decoration: none;
+      padding: 12px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-weight: 600;
+    }
+    a.btn.primary {
+      background: var(--primary);
+      border-color: transparent;
+      color: #fff;
+    }
+    .grid {
+      margin-top: 24px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      background: var(--panel);
+    }
+    .card strong { display: block; margin-bottom: 6px; }
+    .footer { margin-top: 18px; font-size: 13px; color: var(--muted); }
   </style>
 </head>
 <body>
-  <h1>ProofMesh Agent — Day 2+</h1>
-  <p class="muted">Autonomous decision + signed receipt chain + replay audit + tamper simulation + judge bundle export.</p>
+  <main class="container">
+    <span class="badge">ProofMesh Agent • Clean Build Track</span>
+    <h1>Trustable AI Decisions with Verifiable Receipts</h1>
+    <p>
+      Landing route untuk overview. Semua fungsi operasional (task run, verify, replay audit, tamper simulation,
+      judge bundle, fleet stats) dipisah rapi di route aplikasi.
+    </p>
 
-  <div class="card">
-    <div class="row">
-      <div>
-        <label>Title</label>
-        <input id="title" value="Hackathon submission decision" />
-      </div>
-      <div>
-        <label>Budget</label>
-        <input id="budget" type="number" value="5000" />
-      </div>
+    <div class="actions">
+      <a class="btn primary" href="/app">Open App Dashboard</a>
+      <a class="btn" href="/api/health" target="_blank" rel="noreferrer">Health API</a>
+      <a class="btn" href="/api/tasks?limit=5" target="_blank" rel="noreferrer">Recent Tasks API</a>
     </div>
-    <label>Description</label>
-    <textarea id="description">Evaluate whether this project should be approved for final submission.</textarea>
-    <div class="row">
-      <div>
-        <label>Urgency</label>
-        <select id="urgency"><option>low</option><option selected>medium</option><option>high</option></select>
-      </div>
-      <div>
-        <label>Impact</label>
-        <select id="impact"><option>low</option><option>medium</option><option selected>high</option></select>
-      </div>
-    </div>
-    <button id="runBtn">Run Agent</button>
-  </div>
 
-  <div class="card">
-    <h3>Fleet Stats</h3>
-    <div class="stats-grid" id="statsGrid"></div>
-  </div>
+    <section class="grid">
+      <article class="card">
+        <strong>Auditability First</strong>
+        <p>Setiap langkah workflow menghasilkan receipt chain bertanda tangan.</p>
+      </article>
+      <article class="card">
+        <strong>Replay Determinism</strong>
+        <p>Validasi hasil dengan replay-audit untuk memastikan integritas lintas waktu.</p>
+      </article>
+      <article class="card">
+        <strong>Production-Safe API</strong>
+        <p>Input validation, payload guard, content-type checks, dan status jelas.</p>
+      </article>
+    </section>
 
-  <div class="card">
-    <h3>Recent Tasks</h3>
-    <table>
-      <thead><tr><th>ID</th><th>Title</th><th>Decision</th><th>Confidence</th><th>Action</th></tr></thead>
-      <tbody id="taskTable"></tbody>
-    </table>
-  </div>
-
-  <div class="card" id="details" style="display:none;">
-    <h3>Task Detail</h3>
-    <div id="status"></div>
-    <div class="toolbar">
-      <button id="btnVerify">Re-Verify</button>
-      <button id="btnReplay">Run Replay Audit</button>
-      <button id="btnTamper">Run Tamper Simulation</button>
-      <button id="btnBundle">Export Judge Bundle (JSON)</button>
-    </div>
-    <h4>Decision</h4>
-    <pre id="decision"></pre>
-    <h4>Receipt Timeline</h4>
-    <div class="timeline" id="timeline"></div>
-    <h4>Raw Output</h4>
-    <pre id="raw"></pre>
-  </div>
-
-  <script>
-    let currentTask = null;
-
-    const taskTable = document.getElementById('taskTable');
-    const details = document.getElementById('details');
-    const statusEl = document.getElementById('status');
-    const decisionEl = document.getElementById('decision');
-    const rawEl = document.getElementById('raw');
-    const timelineEl = document.getElementById('timeline');
-    const statsGrid = document.getElementById('statsGrid');
-
-    function short(id){ return id.slice(0,8); }
-
-    function confidenceText(value) {
-      if (typeof value !== 'number') return '-';
-      return value.toFixed(3);
-    }
-
-    function renderStats(stats = {}) {
-      const map = [
-        ['Total Tasks', stats.total ?? 0],
-        ['Avg Confidence', confidenceText(stats.avgConfidence)],
-        ['24h Activity', stats.createdLast24h ?? 0],
-        ['High Confidence', stats.confidenceBands?.high ?? 0],
-      ];
-
-      statsGrid.innerHTML = '';
-      for (const [label, value] of map) {
-        const el = document.createElement('div');
-        el.className = 'stat-item';
-        const labelEl = document.createElement('span');
-        labelEl.className = 'stat-label';
-        labelEl.textContent = label;
-        const valueEl = document.createElement('span');
-        valueEl.className = 'stat-value';
-        valueEl.textContent = String(value);
-        el.appendChild(labelEl);
-        el.appendChild(valueEl);
-        statsGrid.appendChild(el);
-      }
-    }
-
-    async function refreshStats() {
-      const data = await fetch('/api/stats').then(r => r.json());
-      if (data.ok) renderStats(data.stats);
-    }
-
-    async function refreshTasks() {
-      const res = await fetch('/api/tasks?limit=30');
-      const data = await res.json();
-      taskTable.innerHTML = '';
-      (data.tasks || []).forEach(t => {
-        const tr = document.createElement('tr');
-
-        const idTd = document.createElement('td');
-        const code = document.createElement('code');
-        code.textContent = short(t.id);
-        idTd.appendChild(code);
-
-        const titleTd = document.createElement('td');
-        titleTd.textContent = t.title;
-
-        const decisionTd = document.createElement('td');
-        decisionTd.textContent = t.decision || '-';
-
-        const confidenceTd = document.createElement('td');
-        confidenceTd.textContent = t.confidence ?? '-';
-
-        const actionTd = document.createElement('td');
-        const btn = document.createElement('button');
-        btn.textContent = 'Open';
-        btn.onclick = () => openTask(t.id);
-        actionTd.appendChild(btn);
-
-        tr.append(idTd, titleTd, decisionTd, confidenceTd, actionTd);
-        taskTable.appendChild(tr);
-      });
-    }
-
-    async function openTask(id) {
-      const res = await fetch(`/api/tasks/${id}`);
-      const data = await res.json();
-      if (!data.ok) return;
-      currentTask = data.task;
-      details.style.display = 'block';
-      renderTask(data.task);
-      await reverify();
-    }
-
-    function renderTask(task) {
-      decisionEl.textContent = JSON.stringify(task.result, null, 2);
-      rawEl.textContent = JSON.stringify(task, null, 2);
-      timelineEl.innerHTML = '';
-      task.receipts.forEach(r => {
-        const div = document.createElement('div');
-        div.className = 'timeline-item';
-
-        const title = document.createElement('strong');
-        title.textContent = `#${r.stepIndex} ${r.stepType}`;
-
-        const reason = document.createElement('div');
-        reason.className = 'muted';
-        reason.textContent = r.reason;
-
-        const hash = document.createElement('code');
-        hash.textContent = `${r.receiptHash.slice(0,20)}...`;
-
-        div.append(title, reason, hash);
-        timelineEl.appendChild(div);
-      });
-    }
-
-    async function reverify() {
-      if (!currentTask) return;
-      const v = await fetch(`/api/tasks/${currentTask.id}/verify`).then(r=>r.json());
-      const ok = v.verification?.ok;
-      statusEl.innerHTML = ok
-        ? `<span class="pill ok">Verification PASS</span>`
-        : `<span class="pill bad">Verification FAIL: ${v.verification?.reason || ''}</span>`;
-    }
-
-    document.getElementById('runBtn').onclick = async () => {
-      const payload = {
-        title: document.getElementById('title').value,
-        description: document.getElementById('description').value,
-        budget: Number(document.getElementById('budget').value),
-        urgency: document.getElementById('urgency').value,
-        impact: document.getElementById('impact').value
-      };
-
-      const res = await fetch('/api/tasks', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (!data.ok) return alert(data.error || 'Failed');
-      await refreshTasks();
-      await refreshStats();
-      await openTask(data.task.id);
-    };
-
-    document.getElementById('btnVerify').onclick = reverify;
-
-    document.getElementById('btnReplay').onclick = async () => {
-      if (!currentTask) return;
-      const v = await fetch(`/api/tasks/${currentTask.id}/replay-audit`).then(r=>r.json());
-      const audit = v.audit || {};
-      alert(`Replay audit: ${audit.ok ? 'PASS' : 'FAIL'}\nStored hash: ${audit.storedHash || '-'}\nRegenerated hash: ${audit.regeneratedHash || '-'}`);
-    };
-
-    document.getElementById('btnTamper').onclick = async () => {
-      if (!currentTask) return;
-      const v = await fetch(`/api/tasks/${currentTask.id}/tamper-check`).then(r=>r.json());
-      alert(`Original: ${v.original.ok ? 'PASS':'FAIL'}\nTampered: ${v.tampered.ok ? 'PASS':'FAIL'}\nReason: ${v.tampered.reason}`);
-    };
-
-    document.getElementById('btnBundle').onclick = async () => {
-      if (!currentTask) return;
-      const data = await fetch(`/api/tasks/${currentTask.id}/judge-bundle`).then(r=>r.json());
-      const blob = new Blob([JSON.stringify(data.bundle, null, 2)], { type: 'application/json' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `judge-bundle-${currentTask.id}.json`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    };
-
-    refreshTasks();
-    refreshStats();
-  </script>
+    <p class="footer">Next route: <code>/app</code> untuk operasi standar Web3-style proof workflow.</p>
+  </main>
 </body>
 </html>

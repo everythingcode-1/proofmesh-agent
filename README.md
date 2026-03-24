@@ -14,14 +14,16 @@ Day-2 MVP in progress (3-day delivery plan).
 - Strict verification endpoint (integrity + signature + exact step contract + single-key consistency checks)
 - Tamper simulation endpoint for demo
 - Judge bundle export endpoint
-- Minimal web UI with receipt timeline, replay-audit action, and fleet stats panel
+- Clean routed web UI: landing route (`/`) + operational dashboard route (`/app`) with receipt timeline, replay-audit action, fleet stats, and pagination
 
 ## Run
 ```bash
 cd proofmesh-agent
 npm run start
 ```
-Open: http://localhost:8787
+Open:
+- Landing: http://localhost:8787/
+- App dashboard: http://localhost:8787/app
 
 ## Dev
 ```bash
@@ -54,4 +56,4 @@ npm test
 2. Hasil scoring/decision diproses menjadi receipt chain (`src/receipts.js`)
 3. Task + receipts disimpan lokal (`src/store.js`)
 4. Verifier memvalidasi hash chain + signature (`verifyReceipts`)
-5. UI menampilkan timeline dan status audit (`public/index.html`)
+5. Landing page ada di `public/index.html`, dan dashboard operasional ada di `public/app.html`

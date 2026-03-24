@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ProofMesh App</title>
+  <style>
+    :root {
+      --ok:#0b8f3a; --bad:#c62828; --muted:#667085;
+      --bg:#f6f8fc; --card:#fff; --line:#e4e7ec; --primary:#2563eb;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: Inter, Arial, sans-serif; margin: 0; background: var(--bg); color:#101828; }
+    .shell { max-width: 1180px; margin: 0 auto; padding: 20px 16px 40px; }
+    .topbar { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom: 14px; }
+    .topbar h1 { font-size: 22px; margin:0; }
+    .topbar a { color: var(--primary); text-decoration:none; font-weight:600; }
+    .muted { color: var(--muted); }
+    .grid { display:grid; grid-template-columns: 1.2fr 1fr; gap: 14px; }
+    .card { background: var(--card); border:1px solid var(--line); border-radius: 12px; padding: 14px; }
+    input, select, textarea, button { width: 100%; margin: 6px 0 12px; padding: 10px; border:1px solid #d0d5dd; border-radius:8px; }
+    button { cursor:pointer; background:#f8fafc; }
+    button.primary { background: var(--primary); color:#fff; border-color: var(--primary); }
+    .row { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+    .toolbar button { width:auto; margin:0; }
+    .pill { display:inline-block; padding:4px 8px; border-radius:999px; font-size:12px; font-weight:600; }
+    .ok { background:#e8f7ef; color:var(--ok); }
+    .bad { background:#fdecec; color:var(--bad); }
+    .timeline { border-left: 2px solid #e4e7ec; margin-left:6px; padding-left:14px; }
+    .timeline-item { margin: 10px 0; }
+    pre { background:#0f172a; color:#e2e8f0; padding:10px; overflow:auto; border-radius:8px; max-height:280px; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { border-bottom:1px solid #eee; padding:8px; font-size:13px; text-align:left; }
+    .stats-grid { display:grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap:8px; }
+    .stat-item { background:#fafafa; border:1px solid #eee; border-radius:8px; padding:10px; }
+    .stat-label { display:block; font-size:12px; color:var(--muted); }
+    .stat-value { font-size:22px; font-weight:700; }
+    .pager { display:flex; gap:8px; align-items:center; justify-content:flex-end; margin-top:8px; }
+    .pager button { width:auto; margin:0; }
+    .alert { margin:8px 0 0; font-size:13px; }
+    @media (max-width: 980px){ .grid{ grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="topbar">
+      <div>
+        <h1>ProofMesh App Dashboard</h1>
+        <div class="muted">Operational route: task run, verify, replay audit, tamper simulation, judge bundle.</div>
+      </div>
+      <a href="/">← Back to Landing</a>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h3>Create Task</h3>
+        <div class="row">
+          <div>
+            <label>Title</label>
+            <input id="title" value="Hackathon submission decision" />
+          </div>
+          <div>
+            <label>Budget</label>
+            <input id="budget" type="number" value="5000" />
+          </div>
+        </div>
+        <label>Description</label>
+        <textarea id="description">Evaluate whether this project should be approved for final submission.</textarea>
+        <div class="row">
+          <div>
+            <label>Urgency</label>
+            <select id="urgency"><option>low</option><option selected>medium</option><option>high</option></select>
+          </div>
+          <div>
+            <label>Impact</label>
+            <select id="impact"><option>low</option><option>medium</option><option selected>high</option></select>
+          </div>
+        </div>
+        <button class="primary" id="runBtn">Run Agent</button>
+        <div id="actionMsg" class="alert muted"></div>
+      </div>
+
+      <div class="card">
+        <h3>Fleet Stats</h3>
+        <div class="stats-grid" id="statsGrid"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Recent Tasks</h3>
+      <table>
+        <thead><tr><th>ID</th><th>Title</th><th>Decision</th><th>Confidence</th><th>Action</th></tr></thead>
+        <tbody id="taskTable"></tbody>
+      </table>
+      <div class="pager">
+        <button id="prevBtn">Prev</button>
+        <span id="pageInfo" class="muted">Page 1</span>
+        <button id="nextBtn">Next</button>
+      </div>
+    </div>
+
+    <div class="card" id="details" style="display:none;">
+      <h3>Task Detail</h3>
+      <div id="status"></div>
+      <div class="toolbar">
+        <button id="btnVerify">Re-Verify</button>
+        <button id="btnReplay">Run Replay Audit</button>
+        <button id="btnTamper">Run Tamper Simulation</button>
+        <button id="btnBundle">Export Judge Bundle (JSON)</button>
+      </div>
+      <h4>Decision</h4>
+      <pre id="decision"></pre>
+      <h4>Receipt Timeline</h4>
+      <div class="timeline" id="timeline"></div>
+      <h4>Raw Output</h4>
+      <pre id="raw"></pre>
+    </div>
+  </div>
+
+  <script>
+    let currentTask = null;
+    const limit = 10;
+    let offset = 0;
+    let hasMore = false;
+
+    const taskTable = document.getElementById('taskTable');
+    const details = document.getElementById('details');
+    const statusEl = document.getElementById('status');
+    const decisionEl = document.getElementById('decision');
+    const rawEl = document.getElementById('raw');
+    const timelineEl = document.getElementById('timeline');
+    const statsGrid = document.getElementById('statsGrid');
+    const actionMsg = document.getElementById('actionMsg');
+
+    function short(id){ return id.slice(0,8); }
+    function confidenceText(value) { return typeof value === 'number' ? value.toFixed(3) : '-'; }
+    function setMsg(text, isError = false) {
+      actionMsg.textContent = text;
+      actionMsg.style.color = isError ? '#c62828' : '#667085';
+    }
+
+    function renderStatus(ok, reason = '') {
+      statusEl.textContent = '';
+      const span = document.createElement('span');
+      span.className = `pill ${ok ? 'ok' : 'bad'}`;
+      span.textContent = ok ? 'Verification PASS' : `Verification FAIL${reason ? `: ${reason}` : ''}`;
+      statusEl.appendChild(span);
+    }
+
+    function renderStats(stats = {}) {
+      const map = [
+        ['Total Tasks', stats.total ?? 0],
+        ['Avg Confidence', confidenceText(stats.avgConfidence)],
+        ['24h Activity', stats.createdLast24h ?? 0],
+        ['High Confidence', stats.confidenceBands?.high ?? 0],
+      ];
+
+      statsGrid.textContent = '';
+      for (const [label, value] of map) {
+        const el = document.createElement('div');
+        el.className = 'stat-item';
+        const labelEl = document.createElement('span');
+        labelEl.className = 'stat-label';
+        labelEl.textContent = label;
+        const valueEl = document.createElement('span');
+        valueEl.className = 'stat-value';
+        valueEl.textContent = String(value);
+        el.append(labelEl, valueEl);
+        statsGrid.appendChild(el);
+      }
+    }
+
+    async function refreshStats() {
+      const data = await fetch('/api/stats').then(r => r.json());
+      if (data.ok) renderStats(data.stats);
+    }
+
+    async function refreshTasks() {
+      const res = await fetch(`/api/tasks?limit=${limit}&offset=${offset}`);
+      const data = await res.json();
+      taskTable.textContent = '';
+      hasMore = Boolean(data.hasMore);
+
+      (data.tasks || []).forEach(t => {
+        const tr = document.createElement('tr');
+        const idTd = document.createElement('td');
+        const code = document.createElement('code');
+        code.textContent = short(t.id);
+        idTd.appendChild(code);
+
+        const titleTd = document.createElement('td');
+        titleTd.textContent = t.title;
+        const decisionTd = document.createElement('td');
+        decisionTd.textContent = t.decision || '-';
+        const confidenceTd = document.createElement('td');
+        confidenceTd.textContent = confidenceText(t.confidence);
+
+        const actionTd = document.createElement('td');
+        const btn = document.createElement('button');
+        btn.textContent = 'Open';
+        btn.onclick = () => openTask(t.id);
+        actionTd.appendChild(btn);
+
+        tr.append(idTd, titleTd, decisionTd, confidenceTd, actionTd);
+        taskTable.appendChild(tr);
+      });
+
+      const page = Math.floor(offset / limit) + 1;
+      document.getElementById('pageInfo').textContent = `Page ${page}`;
+      document.getElementById('prevBtn').disabled = offset === 0;
+      document.getElementById('nextBtn').disabled = !hasMore;
+    }
+
+    async function openTask(id) {
+      const res = await fetch(`/api/tasks/${id}`);
+      const data = await res.json();
+      if (!data.ok) return;
+      currentTask = data.task;
+      details.style.display = 'block';
+      renderTask(data.task);
+      await reverify();
+    }
+
+    function renderTask(task) {
+      decisionEl.textContent = JSON.stringify(task.result, null, 2);
+      rawEl.textContent = JSON.stringify(task, null, 2);
+      timelineEl.textContent = '';
+      task.receipts.forEach(r => {
+        const div = document.createElement('div');
+        div.className = 'timeline-item';
+        const title = document.createElement('strong');
+        title.textContent = `#${r.stepIndex} ${r.stepType}`;
+        const reason = document.createElement('div');
+        reason.className = 'muted';
+        reason.textContent = r.reason;
+        const hash = document.createElement('code');
+        hash.textContent = `${r.receiptHash.slice(0,20)}...`;
+        div.append(title, reason, hash);
+        timelineEl.appendChild(div);
+      });
+    }
+
+    async function reverify() {
+      if (!currentTask) return;
+      const v = await fetch(`/api/tasks/${currentTask.id}/verify`).then(r=>r.json());
+      renderStatus(Boolean(v.verification?.ok), v.verification?.reason || '');
+    }
+
+    document.getElementById('runBtn').onclick = async () => {
+      setMsg('Running agent workflow...');
+      const payload = {
+        title: document.getElementById('title').value,
+        description: document.getElementById('description').value,
+        budget: Number(document.getElementById('budget').value),
+        urgency: document.getElementById('urgency').value,
+        impact: document.getElementById('impact').value
+      };
+
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!data.ok) return setMsg(data.error || 'Failed to create task', true);
+
+      setMsg('Task created successfully.');
+      offset = 0;
+      await refreshTasks();
+      await refreshStats();
+      await openTask(data.task.id);
+    };
+
+    document.getElementById('btnVerify').onclick = reverify;
+
+    document.getElementById('btnReplay').onclick = async () => {
+      if (!currentTask) return;
+      const v = await fetch(`/api/tasks/${currentTask.id}/replay-audit`).then(r=>r.json());
+      const audit = v.audit || {};
+      alert(`Replay audit: ${audit.ok ? 'PASS' : 'FAIL'}\nStored hash: ${audit.storedHash || '-'}\nRegenerated hash: ${audit.regeneratedHash || '-'}`);
+    };
+
+    document.getElementById('btnTamper').onclick = async () => {
+      if (!currentTask) return;
+      const v = await fetch(`/api/tasks/${currentTask.id}/tamper-check`).then(r=>r.json());
+      alert(`Original: ${v.original.ok ? 'PASS':'FAIL'}\nTampered: ${v.tampered.ok ? 'PASS':'FAIL'}\nReason: ${v.tampered.reason}`);
+    };
+
+    document.getElementById('btnBundle').onclick = async () => {
+      if (!currentTask) return;
+      const data = await fetch(`/api/tasks/${currentTask.id}/judge-bundle`).then(r=>r.json());
+      const blob = new Blob([JSON.stringify(data.bundle, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `judge-bundle-${currentTask.id}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    };
+
+    document.getElementById('prevBtn').onclick = async () => {
+      offset = Math.max(0, offset - limit);
+      await refreshTasks();
+    };
+
+    document.getElementById('nextBtn').onclick = async () => {
+      if (!hasMore) return;
+      offset += limit;
+      await refreshTasks();
+    };
+
+    refreshTasks();
+    refreshStats();
+  </script>
+</body>
+</html>

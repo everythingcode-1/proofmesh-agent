@@ -50,14 +50,41 @@ function requiresJson(req) {
   return contentType.includes('application/json');
 }
 
-function serveStatic(req, res) {
-  const reqPath = req.url === '/' ? '/index.html' : req.url;
-  const filePath = path.join(publicDir, reqPath.split('?')[0]);
-  if (!filePath.startsWith(publicDir) || !fs.existsSync(filePath)) return false;
+function serveStatic(pathname, res) {
+  const routeMap = {
+    '/': '/index.html',
+    '/app': '/app.html'
+  };
 
-  const ext = path.extname(filePath);
-  const contentType = ext === '.html' ? 'text/html' : ext === '.js' ? 'text/javascript' : 'text/css';
-  res.writeHead(200, { 'Content-Type': contentType });
+  const normalizedPath = routeMap[pathname] || pathname;
+  const candidates = [normalizedPath];
+
+  if (!path.extname(normalizedPath)) {
+    candidates.push(`${normalizedPath}.html`);
+    candidates.push(path.join(normalizedPath, 'index.html'));
+  }
+
+  let filePath = null;
+  for (const candidate of candidates) {
+    const resolved = path.join(publicDir, candidate);
+    if (!resolved.startsWith(publicDir)) continue;
+    if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) {
+      filePath = resolved;
+      break;
+    }
+  }
+
+  if (!filePath) return false;
+
+  const ext = path.extname(filePath).toLowerCase();
+  const contentTypeMap = {
+    '.html': 'text/html; charset=utf-8',
+    '.js': 'text/javascript; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.json': 'application/json; charset=utf-8'
+  };
+
+  res.writeHead(200, { 'Content-Type': contentTypeMap[ext] || 'text/plain; charset=utf-8' });
   res.end(fs.readFileSync(filePath));
   return true;
 }
@@ -314,7 +341,7 @@ export function createAppServer() {
         return json(res, 200, { ok: true, bundle: buildJudgeBundle(task) });
       }
 
-      if (serveStatic(req, res)) return;
+      if (req.method === 'GET' && serveStatic(reqUrl.pathname, res)) return;
 
       return json(res, 404, { ok: false, error: 'Not found' });
     } catch (err) {

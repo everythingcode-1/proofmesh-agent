@@ -31,6 +31,18 @@ test('health endpoint works', async () => {
   assert.equal(data.ok, true);
 });
 
+test('serves clean routed UI pages for landing and app dashboard', async () => {
+  const landing = await fetch(`${base}/`);
+  assert.equal(landing.status, 200);
+  const landingHtml = await landing.text();
+  assert.match(landingHtml, /ProofMesh Agent/i);
+
+  const app = await fetch(`${base}/app`);
+  assert.equal(app.status, 200);
+  const appHtml = await app.text();
+  assert.match(appHtml, /ProofMesh App Dashboard/i);
+});
+
 test('create task and verify', async () => {
   const created = await fetch(`${base}/api/tasks`, {
     method: 'POST',
